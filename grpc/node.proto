@@ -1,0 +1,22 @@
+syntax = "proto3";
+package Ricart_Argawala;
+
+option go_package = "Ricart_Argawala/grpc;pb";
+
+import "google/protobuf/empty.proto";
+
+service node {
+    rpc RecieveMessage(MessageRequest) returns (google.protobuf.Empty);
+}
+
+message MessageRequest {
+    string senderId = 1;
+    int64 lamport = 2;
+}
+
+//Node1 --> All nodes
+//node1 venter på respons
+//sidste node er færdig
+//node N returnerer empty
+//node 1 ser empty og siger cool
+//node 1 sætte state til HELD
