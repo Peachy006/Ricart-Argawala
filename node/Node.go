@@ -1,14 +1,18 @@
-package node
+package main
 
 import (
 	pb "Ricart-Argawala/grpc"
 	"context"
 	"flag"
 	"log"
+	"math/rand"
 	"net"
+	"strconv"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -32,9 +36,9 @@ func (s state) String() string {
 }
 
 var nodes = []string{
-	"localhost:5001",
-	"localhost:5002",
-	"localhost:5003",
+	"5001",
+	"5002",
+	"5003",
 }
 
 type Node struct {
@@ -101,6 +105,7 @@ func (n *Node) isBefore(otherT int64, otherId string) bool {
 // Enter
 
 func (n *Node) Enter() {
+	log.Printf("Node %d is now wanting to enter CS", n.id)
 	n.mu.Lock()
 	n.state = wanted
 	n.lamport++
@@ -114,8 +119,13 @@ func (n *Node) Enter() {
 		wg.Add(1)
 		go func(c pb.NodeClient) {
 			defer wg.Done()
-			if _, err := c.RecieveMessage(context.Background(), req); err != nil {
-				log.Print("Peer call failed to", n.id)
+			for {
+				_, err := c.RecieveMessage(context.Background(), req, grpc.WaitForReady(true))
+				if err == nil {
+					return
+				}
+				log.Printf("Node %s: request failed, retrying: %v", n.id, err)
+				time.Sleep(200 * time.Millisecond)
 			}
 		}(p)
 	}
@@ -123,10 +133,9 @@ func (n *Node) Enter() {
 
 	n.mu.Lock()
 	n.state = held
-	n.lamport++ //? Not sure if this is needed// yours truely <3
+	n.lamport++
 	n.mu.Unlock()
 	log.Printf("Node %s entered critical section", n.id)
-
 }
 
 //CreateNode
@@ -143,12 +152,66 @@ func (n *Node) Exit() {
 	log.Printf("Node %s exited critical section", n.id)
 }
 
+func (n *Node) Connect() error {
+	for _, addr := range nodes {
+		if addr == n.address {
+			continue
+		}
+		conn, err := grpc.NewClient("localhost:"+addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return err
+		}
+		n.clients = append(n.clients, pb.NewNodeClient(conn))
+	}
+	log.Printf("Node %s connected to %d peers", n.id, len(n.clients))
+	return nil
+}
+
 func main() {
-	id := flag.String("id", "invalidId", "The id")
+	id := flag.String("id", "invalidId", "The id, please select either 0,1,2")
 	flag.Parse()
-	if id == "invalidId" {
+	if *id == "invalidId" {
 		log.Fatal("please give id using -id flag")
 		return
 	}
+	idInt, err := strconv.Atoi(*id)
 
+	if err != nil {
+		log.Fatalf("please provide an id of either 0,1,2")
+	}
+
+	addr := nodes[idInt]
+
+	n := Node{id: *id, port: nodes[idInt], state: released, address: addr}
+
+	go func() {
+		if err := n.Serve(); err != nil {
+			log.Fatalf("Serve:", err)
+		}
+	}()
+	time.Sleep(20 * time.Second) // wait for all to be created
+
+	if err := n.Connect(); err != nil {
+		log.Fatalf("connection:", err)
+	}
+
+	//Core logic
+	for {
+		time.Sleep(time.Duration(1000+rand.Intn(4000)) * time.Millisecond)
+		n.Enter()
+		log.Printf("Node %s entered critical section", n.id)
+		n.EnterCriticalSection()
+		log.Printf("Node %s exited critical section", n.id)
+		n.Exit()
+	}
+
+}
+
+func (node *Node) EnterCriticalSection() {
+	lis, err := net.Dial("tcp", ":9000")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	defer lis.Close()
 }
