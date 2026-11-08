@@ -71,6 +71,7 @@ func (n *Node) RecieveMessage(ctx context.Context, req *pb.MessageRequest) (*emp
 		n.lamport = req.Lamport
 	}
 	n.lamport++
+	log.Printf("Node %s has received a request to access the critical section at time %d", n.id, n.lamport)
 	makeThemWait := n.state == held || (n.state == wanted && n.isBefore(req.Lamport, req.SenderId)) //boolean
 
 	if !makeThemWait {
@@ -86,6 +87,7 @@ func (n *Node) RecieveMessage(ctx context.Context, req *pb.MessageRequest) (*emp
 	case <-wait:
 		n.mu.Lock()
 		n.lamport++
+		log.Printf("Node %s is responding to requesting node and granting access at logical time %d", n.id, n.lamport)
 		n.mu.Unlock()
 		return &emptypb.Empty{}, nil
 	case <-ctx.Done():
@@ -111,6 +113,7 @@ func (n *Node) Enter() {
 	n.timeOfRequest = n.lamport
 	req := &pb.MessageRequest{SenderId: n.id, Lamport: n.timeOfRequest}
 	others := n.clients
+	log.Printf("Node %s is now enqueueing for access to critical section at logical time %d", n.id, n.lamport)
 	n.mu.Unlock()
 
 	var wg sync.WaitGroup
@@ -132,11 +135,8 @@ func (n *Node) Enter() {
 
 	n.mu.Lock()
 	n.state = held
-	n.lamport++
 	n.mu.Unlock()
 }
-
-//CreateNode
 
 // Exit
 func (n *Node) Exit() {
@@ -147,6 +147,7 @@ func (n *Node) Exit() {
 	}
 	n.queue = nil
 	n.mu.Unlock()
+	n.lamport++
 	log.Printf("Node %s exited critical section at logical time %d", n.id, n.lamport)
 }
 
@@ -209,8 +210,8 @@ func (n *Node) EnterCriticalSection() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	log.Printf("Node %s entered critical section at logical time %d", n.id, n.lamport)
 	n.lamport++
+	log.Printf("Node %s entered critical section at logical time %d", n.id, n.lamport)
 	time.Sleep(2 * time.Second)
 	defer lis.Close()
 }
