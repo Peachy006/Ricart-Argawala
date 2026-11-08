@@ -186,13 +186,13 @@ func main() {
 
 	go func() {
 		if err := n.Serve(); err != nil {
-			log.Fatalf("Serve:", err)
+			log.Fatalf("Serve: %s", err)
 		}
 	}()
 	time.Sleep(20 * time.Second) // wait for all to be created
 
 	if err := n.Connect(); err != nil {
-		log.Fatalf("connection:", err)
+		log.Fatalf("connection: %s", err)
 	}
 
 	//Core logic
