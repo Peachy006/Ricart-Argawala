@@ -105,7 +105,6 @@ func (n *Node) isBefore(otherT int64, otherId string) bool {
 // Enter
 
 func (n *Node) Enter() {
-	log.Printf("Node %d is now wanting to enter CS", n.id)
 	n.mu.Lock()
 	n.state = wanted
 	n.lamport++
@@ -135,7 +134,6 @@ func (n *Node) Enter() {
 	n.state = held
 	n.lamport++
 	n.mu.Unlock()
-	log.Printf("Node %s entered critical section", n.id)
 }
 
 //CreateNode
@@ -149,7 +147,7 @@ func (n *Node) Exit() {
 	}
 	n.queue = nil
 	n.mu.Unlock()
-	log.Printf("Node %s exited critical section", n.id)
+	log.Printf("Node %s exited critical section at logical time %d", n.id, n.lamport)
 }
 
 func (n *Node) Connect() error {
@@ -200,18 +198,19 @@ func main() {
 	for {
 		time.Sleep(time.Duration(1000+rand.Intn(4000)) * time.Millisecond)
 		n.Enter()
-		log.Printf("Node %s entered critical section", n.id)
 		n.EnterCriticalSection()
-		log.Printf("Node %s exited critical section", n.id)
 		n.Exit()
 	}
 
 }
 
-func (node *Node) EnterCriticalSection() {
+func (n *Node) EnterCriticalSection() {
 	lis, err := net.Dial("tcp", ":9000")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	log.Printf("Node %s entered critical section at logical time %d", n.id, n.lamport)
+	n.lamport++
+	time.Sleep(2 * time.Second)
 	defer lis.Close()
 }

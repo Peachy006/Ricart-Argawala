@@ -1,10 +1,8 @@
-package criticalsection
+package main
 
 import (
-	"bufio"
 	"log"
 	"net"
-	"strings"
 )
 
 func main() {
@@ -19,26 +17,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to accept connection: %v", err)
 		}
-		go handeConnection(conn)
+		go handleConnection(conn)
 	}
 }
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-
-	reader := bufio.NewReader(conn)
-	for {
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			log.Printf("Error reading message: %v", err)
-			return
-		}
-		message = strings.TrimSpace(message)
-		switch message {
-		case "exit":
-			return
-		default:
-			log.Printf("Message: %s", message)
-		}
-	}
 }
